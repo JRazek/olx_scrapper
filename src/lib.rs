@@ -1,26 +1,17 @@
 use chrono::prelude::*;
-use thirtyfour::prelude::*;
+use scraper::selectable::Selectable;
+use scraper::selector::*;
+use scraper::ElementRef;
 use thiserror::Error;
 
-const OLX_URL: &str = "https://www.olx.pl";
+use reqwest::Client;
+use reqwest::Error as ReqwestError;
+use reqwest::Url;
 
-async fn try_accept_cookies(driver: &mut WebDriver) -> WebDriverResult<()> {
-    match driver.find(By::Id("onetrust-accept-btn-handler")).await {
-        Ok(elem) => {
-            elem.click().await?;
-        }
-        Err(WebDriverError::NoSuchElement(..)) => {
-            println!("No cookies to accept.");
-        }
-        Err(e) => {
-            return Err(e);
-        }
-    }
-
-    Ok(())
-}
-
+use scraper::Html;
 use serde::Serialize;
+
+const OLX_URL: &str = "https://www.olx.pl";
 
 #[derive(Debug, Serialize)]
 pub struct Price {
@@ -54,12 +45,24 @@ impl std::fmt::Display for FieldParsingError {
 }
 
 #[derive(Debug, Error)]
-pub enum ScrapperError {
-    #[error("WebDriver error: {0}")]
-    WebDriverError(#[from] WebDriverError),
+pub struct MissingFieldError(String);
 
-    #[error("Price parse error: {0}")]
+impl std::fmt::Display for MissingFieldError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Missing field: {}", self.0)
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ScrapperError {
+    #[error("Reqwest error: {0}")]
+    ReqwestError(#[from] ReqwestError),
+
+    #[error("Field parse error: {0}")]
     FieldParsingError(#[from] FieldParsingError),
+
+    #[error("Missing field: {0}")]
+    MissingFieldError(#[from] MissingFieldError),
 }
 
 fn parse_date(date: &str) -> Result<DateTime<Utc>, FieldParsingError> {
@@ -188,28 +191,35 @@ fn get_price_from_raw_text(
     Ok(Price { value, negotiable })
 }
 
-async fn parse_listing(listing: WebElement) -> Result<Listing, ScrapperError> {
+fn parse_listing(listing: ElementRef) -> Result<Listing, ScrapperError> {
     let ad_card_title = listing
-        .find(By::Css(r#"[data-cy="ad-card-title"]"#))
-        .await?
-        .find(By::XPath(r#"a/h6"#))
-        .await?
+        .select(&Selector::parse(r#"[data-cy="ad-card-title"]"#).unwrap())
+        .nth(0)
+        .ok_or(MissingFieldError("ad-card-title missing".to_owned()))?
+        .select(&Selector::parse(r#"a"#).unwrap())
+        .nth(0)
+        .ok_or(MissingFieldError("ad-card-title missing".to_owned()))?
+        .select(&Selector::parse(r#"h6"#).unwrap())
+        .nth(0)
+        .ok_or(MissingFieldError("ad-card-title missing".to_owned()))?
         .text()
-        .await?;
+        .collect::<String>();
 
     let price_raw_text = listing
-        .find(By::Css(r#"[data-testid="ad-price"]"#))
-        .await?
+        .select(&Selector::parse(r#"[data-testid="ad-price"]"#).unwrap())
+        .nth(0)
+        .ok_or(MissingFieldError("ad-price missing".to_owned()))?
         .text()
-        .await?;
+        .collect::<String>();
 
     let price = get_price_from_raw_text(price_raw_text)?;
 
     let location_date = listing
-        .find(By::Css(r#"[data-testid="location-date"]"#))
-        .await?
+        .select(&Selector::parse(r#"[data-testid="location-date"]"#).unwrap())
+        .nth(0)
+        .ok_or(MissingFieldError("location-date missing".to_owned()))?
         .text()
-        .await?;
+        .collect::<String>();
 
     let (location, date) = get_location_date_from_raw_text(location_date)?;
 
@@ -218,13 +228,15 @@ async fn parse_listing(listing: WebElement) -> Result<Listing, ScrapperError> {
         "{}{}",
         OLX_URL,
         listing
-            .find(By::Css(r#"[data-cy="ad-card-title"]"#))
-            .await?
-            .find(By::XPath(r#"a"#))
-            .await?
+            .select(&Selector::parse(r#"[data-cy="ad-card-title"]"#).unwrap())
+            .nth(0)
+            .ok_or(MissingFieldError("ad-card-title missing".to_owned()))?
+            .select(&Selector::parse(r#"a"#).unwrap())
+            .nth(0)
+            .ok_or(MissingFieldError("a param missing".to_owned()))?
+            .value()
             .attr("href")
-            .await?
-            .unwrap()
+            .ok_or(MissingFieldError("href missing".to_owned()))?
     );
 
     Ok(Listing {
@@ -237,46 +249,34 @@ async fn parse_listing(listing: WebElement) -> Result<Listing, ScrapperError> {
 }
 
 pub async fn fetch_listings(
-    driver: &mut WebDriver,
+    client: &Client,
     search_term: &str,
 ) -> Result<Vec<Listing>, ScrapperError> {
-    driver.goto(OLX_URL).await?;
+    let url = Url::parse(&format!("{}/q-{}", OLX_URL, search_term)).unwrap();
 
-    driver
-        .set_implicit_wait_timeout(std::time::Duration::from_secs(10))
-        .await?;
+    let response = client.get(url).send().await?;
 
-    try_accept_cookies(driver).await?;
+    let body = response.text().await?;
 
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    let html = Html::parse_document(&body);
 
-    let elem_form = driver
-        .find(By::Css(r#"[data-testid="search-form"]"#))
-        .await?;
+    let listing_grid_selector = Selector::parse(r#"[data-testid="listing-grid"]"#).unwrap();
 
-    // Find element from element.
-    let elem_text = elem_form.find(By::Id("search")).await?;
+    let listing_grid =
+        html.select(&listing_grid_selector)
+            .nth(0)
+            .ok_or(ScrapperError::FieldParsingError(FieldParsingError {
+                error_type: "ListingGridNotFound".to_owned(),
+                message: "Listing grid not found".to_owned(),
+            }))?;
 
-    // Type in the search terms.
-    elem_text.send_keys(search_term).await?;
-
-    // Click the search button.
-    let elem_button = elem_form.find(By::Css("button[type='submit']")).await?;
-    elem_button.click().await?;
-
-    // Look for header to implicitly wait for the page to load.
-    let listing_grid = driver
-        .find(By::Css(r#"[data-testid="listing-grid"]"#))
-        .await?;
-
-    let listings = listing_grid
-        .find_all(By::Css(r#"[data-testid="l-card"]"#))
-        .await?;
+    let listings_selector = Selector::parse(r#"[data-testid="l-card"]"#).unwrap();
+    let listings = listing_grid.select(&listings_selector).collect::<Vec<_>>();
 
     let mut listings_data = Vec::new();
 
     for listing in listings {
-        match parse_listing(listing).await {
+        match parse_listing(listing) {
             Ok(listing) => {
                 listings_data.push(listing);
             }
