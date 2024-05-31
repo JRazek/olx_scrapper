@@ -153,21 +153,35 @@ fn get_price_from_raw_text(
     raw_text: impl ToOwned<Owned = String>,
 ) -> Result<Price, FieldParsingError> {
     let text = raw_text.to_owned();
-    let price_regex = regex::Regex::new(r"(\d+(?: \d+)*)").unwrap();
+    let price_regex = regex::Regex::new(r"(\d+(?: \d+)*)(?:,(\d{2}))?").unwrap();
 
-    let matched = price_regex.find(&text).ok_or(FieldParsingError {
+    let matched = price_regex.captures(&text).ok_or(FieldParsingError {
         error_type: "PriceParsingError".to_owned(),
         message: "No price found".to_owned(),
     })?;
 
-    let value = matched
+    let map_error = |e: std::num::ParseIntError| FieldParsingError {
+        error_type: "PriceParsingError".to_owned(),
+        message: e.to_string(),
+    };
+
+    let integer = matched
+        .get(1)
+        .unwrap()
         .as_str()
         .replace(" ", "")
         .parse::<u32>()
-        .map_err(|_| FieldParsingError {
-            error_type: "PriceParsingError".to_owned(),
-            message: "Failed to parse price".to_owned(),
-        })?;
+        .map_err(map_error);
+
+    let decimal = matched
+        .get(2)
+        .map(|m| m.as_str())
+        .unwrap_or("00")
+        .replace(" ", "")
+        .parse::<u32>()
+        .map_err(map_error);
+
+    let value = integer.unwrap() * 100 + decimal.unwrap();
 
     let negotiable = text.find("do negocjacji").is_some();
 
