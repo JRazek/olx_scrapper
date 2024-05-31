@@ -1,0 +1,18 @@
+[package]
+name = "olx_scrapper"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thirtyfour = "0.32.0"
+tokio = { version = "1.28.1", features = ["full"] }
+tokio-tungstenite = "0.18.0"
+tokio-native-tls = "0.3.1"
+tokio-util = "0.7.9"
+regex = "1.10.4"
+thiserror = "1.0.61"
+chrono = { version = "0.4.38", features = ["serde"] }
+serde = "1.0.203"
+
+[dev-dependencies]
+serde_json = "1.0.68"
