@@ -1,3 +1,5 @@
+pub mod histogram;
+
 use chrono::prelude::*;
 use scraper::selectable::Selectable;
 use scraper::selector::*;
@@ -15,17 +17,17 @@ const OLX_URL: &str = "https://www.olx.pl";
 
 #[derive(Debug, Serialize)]
 pub struct Price {
-    value: u32,
-    negotiable: bool,
+    pub value: u32,
+    pub negotiable: bool,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Listing {
-    title: String,
-    price: Price,
-    location: String,
-    date: DateTime<Utc>,
-    url: String,
+    pub title: String,
+    pub price: Price,
+    pub location: String,
+    pub date: DateTime<Utc>,
+    pub url: String,
 }
 
 #[derive(Debug, Error)]
