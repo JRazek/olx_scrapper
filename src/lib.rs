@@ -1,3 +1,4 @@
+pub mod db;
 pub mod histogram;
 
 use chrono::prelude::*;
@@ -26,7 +27,7 @@ pub struct Listing {
     pub title: String,
     pub price: Price,
     pub location: String,
-    pub date: DateTime<Utc>,
+    pub date_posted: DateTime<Utc>,
     pub url: String,
 }
 
@@ -226,26 +227,23 @@ fn parse_listing(listing: ElementRef) -> Result<Listing, ScrapperError> {
     let (location, date) = get_location_date_from_raw_text(location_date)?;
 
     // slash is already added by the OLX.
-    let url = format!(
-        "{}{}",
-        OLX_URL,
-        listing
-            .select(&Selector::parse(r#"[data-cy="ad-card-title"]"#).unwrap())
-            .nth(0)
-            .ok_or(MissingFieldError("ad-card-title missing".to_owned()))?
-            .select(&Selector::parse(r#"a"#).unwrap())
-            .nth(0)
-            .ok_or(MissingFieldError("a param missing".to_owned()))?
-            .value()
-            .attr("href")
-            .ok_or(MissingFieldError("href missing".to_owned()))?
-    );
+    let url = listing
+        .select(&Selector::parse(r#"[data-cy="ad-card-title"]"#).unwrap())
+        .nth(0)
+        .ok_or(MissingFieldError("ad-card-title missing".to_owned()))?
+        .select(&Selector::parse(r#"a"#).unwrap())
+        .nth(0)
+        .ok_or(MissingFieldError("a param missing".to_owned()))?
+        .value()
+        .attr("href")
+        .ok_or(MissingFieldError("href missing".to_owned()))?
+        .to_owned();
 
     Ok(Listing {
         title: ad_card_title,
         price,
         location,
-        date,
+        date_posted: date,
         url,
     })
 }
