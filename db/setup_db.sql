@@ -1,0 +1,14 @@
+CREATE TABLE listings (
+    id SERIAL PRIMARY KEY,
+	category INT NOT NULL,
+	query VARCHAR(50),
+    title VARCHAR(50) NOT NULL,
+	price INT NOT NULL,
+	negotiable BOOLEAN DEFAULT FALSE,
+	description TEXT,
+	location VARCHAR(50),
+	date_posted TIMESTAMP NOT NULL,
+	date_updated TIMESTAMP,
+	first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
