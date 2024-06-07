@@ -58,6 +58,9 @@ impl std::fmt::Display for MissingFieldError {
 
 #[derive(Debug, Error)]
 pub enum ScrapperError {
+    #[error("Redirected to: {0}")]
+    Redirected(Url),
+
     #[error("Reqwest error: {0}")]
     ReqwestError(#[from] ReqwestError),
 
@@ -251,10 +254,15 @@ fn parse_listing(listing: ElementRef) -> Result<Listing, ScrapperError> {
 pub async fn fetch_listings(
     client: &Client,
     search_term: &str,
+    page: u32,
 ) -> Result<Vec<Listing>, ScrapperError> {
-    let url = Url::parse(&format!("{}/q-{}", OLX_URL, search_term)).unwrap();
+    let url = Url::parse(&format!("{OLX_URL}/q-{search_term}?page={page}")).unwrap();
 
     let response = client.get(url).send().await?;
+
+    if response.status().is_redirection() {
+        return Err(ScrapperError::Redirected(response.url().clone()));
+    }
 
     let body = response.text().await?;
 
