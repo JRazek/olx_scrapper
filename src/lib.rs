@@ -202,14 +202,18 @@ fn parse_listing(listing: ElementRef) -> Result<Listing, ScrapperError> {
         .select(&Selector::parse(r#"[data-cy="ad-card-title"]"#).unwrap())
         .nth(0)
         .ok_or(MissingFieldError("ad-card-title missing".to_owned()))?
-        .select(&Selector::parse(r#"a"#).unwrap())
-        .nth(0)
-        .ok_or(MissingFieldError("ad-card-title missing".to_owned()))?
-        .select(&Selector::parse(r#"h6"#).unwrap())
-        .nth(0)
-        .ok_or(MissingFieldError("ad-card-title missing".to_owned()))?
-        .text()
-        .collect::<String>();
+        .first_child()
+        .ok_or(MissingFieldError("href missing".to_owned()))?
+        .last_child()
+        .ok_or(MissingFieldError("href missing".to_owned()))?
+        .last_child()
+        .ok_or(MissingFieldError("href(2) missing".to_owned()))?
+        .value()
+        .as_text()
+        .ok_or(MissingFieldError(
+            "ad-card-title (h4/h6/h-any) is not text".to_owned(),
+        ))?
+        .to_string();
 
     let price_raw_text = listing
         .select(&Selector::parse(r#"[data-testid="ad-price"]"#).unwrap())

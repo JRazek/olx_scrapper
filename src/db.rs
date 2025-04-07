@@ -52,7 +52,7 @@ pub async fn insert_results_db(client: &Client, listing: &Listing) -> Result<()>
                 ",
             &[
                 &listing.url,
-                &0i32,
+                &1i32, //dummy for now
                 &listing.title,
                 &(listing.price.value as i32),
                 &listing.price.negotiable,

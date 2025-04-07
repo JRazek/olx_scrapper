@@ -20,6 +20,10 @@ async fn crawl_query(client: &Client, search_term: &str) -> Result<Vec<Listing>>
         match fetch_listings(client, search_term, page).await {
             Ok(new_listings) => {
                 println!("Fetched {} listings", new_listings.len());
+                if new_listings.is_empty() {
+                    println!("No more listings found, stopping");
+                    break;
+                }
                 listings.extend(new_listings);
             }
             //once one reaches a page # that is not existent, olx redirects to the last page
