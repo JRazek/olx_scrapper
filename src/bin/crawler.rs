@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
         let listings = crawl_query(&reqwest_client, &category.default_query).await?;
 
         for listing in listings.iter() {
-            insert_results_db(&psql_client, listing).await?;
+            insert_results_db(&psql_client, category.id, listing).await?;
         }
 
         println!(
