@@ -1,25 +1,32 @@
+use postgres_derive::{FromSql, ToSql};
 use tokio_postgres::Client;
+
+use tokio_postgres::types::FromSql;
 
 use crate::Listing;
 
+use anyhow::{Context, Result};
+
 #[derive(Debug)]
 pub struct Category {
+    pub id: i32,
     pub name: String,
     pub default_query: String,
 }
 
-pub async fn fetch_categories(
-    client: &Client,
-) -> Result<Vec<Category>, Box<dyn std::error::Error>> {
-    let rows = client.query("select name from categories", &[]).await?;
+pub async fn fetch_categories(client: &Client) -> Result<Vec<Category>> {
+    let rows = client
+        .query("select name, default_query from categories", &[])
+        .await?;
 
     let mut categories = Vec::new();
 
     for row in rows {
-        let name: String = row.get(0);
-        let default_query: String = row.get(1);
+        let name: String = row.try_get(0)?;
+        let default_query: String = row.try_get(1)?;
 
         categories.push(Category {
+            id: 0, //todo
             name,
             default_query,
         });
@@ -28,39 +35,32 @@ pub async fn fetch_categories(
     Ok(categories)
 }
 
-pub async fn insert_results_db(
-    client: &Client,
-    listings: Vec<Listing>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    for listing in listings {
-        client
-            .execute(
-                "insert into listings (
+pub async fn insert_results_db(client: &Client, listing: &Listing) -> Result<()> {
+    client
+        .execute(
+            "insert into listings (
                     url,
                     category,
                     title,
-                    query,
                     price,
                     negotiable,
                     location,
                     date_posted
-            ) values ($1, $2, $3, $4, $5, $6, $7, $8)
+            ) values ($1, $2, $3, $4, $5, $6, $7)
                 on conflict (url) do update set
                     last_seen = now()
                 ",
-                &[
-                    &listing.url,
-                    &0i32,
-                    &"dummy query",
-                    &listing.title,
-                    &(listing.price.value as i32),
-                    &listing.price.negotiable,
-                    &listing.location,
-                    &listing.date_posted.naive_utc(),
-                ],
-            )
-            .await?;
-    }
+            &[
+                &listing.url,
+                &0i32,
+                &listing.title,
+                &(listing.price.value as i32),
+                &listing.price.negotiable,
+                &listing.location,
+                &listing.date_posted.naive_utc(),
+            ],
+        )
+        .await?;
 
     Ok(())
 }

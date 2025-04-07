@@ -16,6 +16,8 @@ reqwest = "0.12.4"
 scraper = "0.19.0"
 plotters = { version = "0.3.5", default_features = false, features = ["svg_backend", "bitmap_backend", "errorbar", "line_series", "histogram", "point_series"] }
 tokio-postgres = { version="0.7.10", features = ["with-chrono-0_4"] }
+postgres-derive = "0.4.6"
+anyhow = "1.0.97"
 
 [[bin]]
 name = "crawler"

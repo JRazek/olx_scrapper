@@ -256,11 +256,20 @@ pub async fn fetch_listings(
     search_term: &str,
     page: u32,
 ) -> Result<Vec<Listing>, ScrapperError> {
-    let url = Url::parse(&format!("{OLX_URL}/q-{search_term}?page={page}")).unwrap();
+    let mut url = Url::parse(&format!("{OLX_URL}/q-{search_term}/")).unwrap();
+    if page > 1 {
+        url.query_pairs_mut().append_pair("page", &page.to_string());
+    }
+
+    eprintln!("Request: {:?}", url);
 
     let response = client.get(url).send().await?;
 
+    eprintln!("Response: {:?}", response);
+
+    //moved permanentaly or redirected
     if response.status().is_redirection() {
+        println!("Redirected to: {:?}", response.url());
         return Err(ScrapperError::Redirected(response.url().clone()));
     }
 

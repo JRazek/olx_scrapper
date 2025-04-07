@@ -2,17 +2,18 @@
 
 # Database credentials
 DB_USER="olx_scrapper_root"
+DB_USER_PASS="pass"
 DB_NAME="olx_data"
 DB_HOST="localhost"  # Change if your database host is different
 
 # Directory containing the SQL scripts
 SQL_DIR="db/sql"
 
-psql -c "CREATE USER olx_scrapper_root WITH PASSWORD 'pass';"
+psql -c "CREATE USER $DB_USER WITH PASSWORD '$DB_USER_PASS';"
 
-psql -c "CREATE DATABASE olx_data WITH OWNER olx_scrapper_root;"
+psql -c "CREATE DATABASE $DB_NAME WITH OWNER $DB_USER;"
 
-psql -c "GRANT ALL PRIVILEGES ON DATABASE olx_data TO olx_scrapper_root;"
+psql -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;"
 
 
 # Check if the directory exists
